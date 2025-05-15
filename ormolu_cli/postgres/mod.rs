@@ -70,7 +70,7 @@ async fn list_tables(pool: &PgPool, schema: &str) -> Result<Vec<Table>, sqlx::Er
             .map(|row| {
                 let name: String = row.get("column_name");
                 let ordinal: i32 = row.get("ordinal_position");
-                let t_info: String = row.get("data_type");
+                let type_info: String = row.get("data_type");
 
                 let is_nullable: bool = row.get::<String, _>("is_nullable") == "YES";
 
@@ -79,7 +79,7 @@ async fn list_tables(pool: &PgPool, schema: &str) -> Result<Vec<Table>, sqlx::Er
                 PgColumn {
                     is_nullable,
                     name,
-                    type_info: t_info,
+                    type_info,
                     ordinal,
                 }
             })
@@ -110,7 +110,7 @@ fn map_sql_type_to_rust(
         }
         "timestamp without time zone" | "timestamp with time zone" => {
             required_imports.insert("chrono::NaiveDateTime".to_string());
-            syn::parse_str("chrono::NaiveDate").unwrap()
+            syn::parse_str("chrono::NaiveDateTime").unwrap()
         }
         "real" => syn::parse_str("f32").unwrap(),
         "double precision" => syn::parse_str("f64").unwrap(),
@@ -336,3 +336,7 @@ pub async fn generate_postgres(url: &Url, output_path: &Path) {
     // check for begin to end section
     // replace file from begin to end section
 }
+
+// Database             (gen db struct)
+//      Table[]         (gen table struct and item struct  (struct User && struct UserTable) )
+//          Column[]    (gen Vec<Column>) which is just each fields datatype and metadata

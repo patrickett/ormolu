@@ -1,15 +1,5 @@
-[package]
-name = "ormolu"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+default-members = ["ormolu", "ormolu_interfaces", "ormolu_macros"]
+members = ["ormolu", "ormolu_cli", "ormolu_interfaces", "ormolu_macros"]
 
-[dependencies]
-clap = { version = "4.5.2", features = ["derive"] }
-sqlx ={ version="0.7.4", features = ["postgres", "runtime-tokio-native-tls"] }
-url = { version = "2.2", default-features = false }
-tokio = { version = "1", features = ["full"] }
-quote = "1.0"
-syn = "2.0"
-proc-macro2 = "1.0"
-convert_case = "0.6.0"
-chrono = "0.4.38"
+resolver = "3"
