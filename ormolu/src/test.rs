@@ -6,7 +6,6 @@ mod gilded_macro {
 
     #[test]
     fn parse_header_attributes() {
-        #[allow(dead_code)]
         #[derive(Gilded)]
         #[gild(table = "user", schema = "public")]
         pub struct User {
@@ -22,7 +21,6 @@ mod gilded_macro {
 
     #[test]
     fn create_primary_key_getter() {
-        #[allow(dead_code)]
         #[derive(Gilded)]
         #[gild(table = "user")]
         pub struct User {
@@ -47,7 +45,6 @@ mod gilded_macro {
     fn fields_getter() {
         use ormolu_macros::Gilded;
 
-        #[allow(dead_code)]
         #[derive(Gilded)]
         #[gild(table = "customer")]
         pub struct Customer {
@@ -82,7 +79,6 @@ mod gilded_macro {
     fn unique_field_find_method() {
         use ormolu_macros::Gilded;
 
-        #[allow(dead_code)]
         #[derive(Gilded)]
         #[gild(table = "customer")]
         pub struct Customer {
@@ -120,7 +116,6 @@ mod gilded_macro {
         // )
 
         #[derive(Gilded)]
-        #[allow(dead_code)]
         #[gild(table = "customer")]
         pub struct Customer {
             #[gild(primary_key, column = "customer_id")]
@@ -147,7 +142,6 @@ mod gilded_macro {
         //
 
         #[derive(Gilded)]
-        #[allow(dead_code)]
         #[gild(table = "product")]
         pub struct Product {
             #[gild(primary_key, column = "product_id")]
@@ -178,7 +172,6 @@ mod gilded_macro {
         // )
 
         #[derive(Gilded)]
-        #[allow(dead_code)]
         #[gild(table = "order")]
         pub struct Order {
             #[gild(primary_key, column = "order_id")]
@@ -204,25 +197,36 @@ mod gilded_macro {
 
 #[cfg(test)]
 mod query_builder {
-
-    use ormolu_interfaces::query::Where;
-
-    use crate::sql_command::{self};
+    use crate::{query::*, *};
 
     #[test]
     fn example_builder() {
-        let mut q =
-            sql_command::query::QueryState::new("user", vec!["name".to_string(), "id".to_string()]);
+        #[derive(Gilded, Default)]
+        #[gild(table = "order")]
+        pub struct Order {
+            #[gild(primary_key, column = "order_id")]
+            id: i32,
+            #[gild(references = (Customer, "customer_id"))]
+            // or #[gild(references = Customer)] since matching 'customer_id' col name
+            customer_id: i32,
+            order_date: chrono::NaiveDateTime,
+            total_amount: f64,
+            status: String,
+            name: String,
+            shipping_address: String,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        let mut q: QueryState<Order> = sql_command::query::QueryState::default();
         q.limit = Some(1);
         q.offset = Some(0);
         // q.set_select(["name".into(), "id".into()]);
         q.r#where.push(Where::neq("id", "4".into()));
 
-        assert!(!q.is_many());
-
         assert_eq!(
             q.to_string(),
-            "SELECT name, id FROM user WHERE id != 4 LIMIT 1 OFFSET 0".to_string()
+            "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE id != 4 LIMIT 1 OFFSET 0".to_string()
         )
     }
 }
@@ -235,7 +239,7 @@ mod filter_proxy_iter_dsl {
 
     #[test]
     fn field_filter() {
-        #[derive(Gilded)]
+        #[derive(Gilded, Default)]
         #[gild(table = "order")]
         pub struct Order {
             #[gild(primary_key, column = "order_id")]
@@ -253,7 +257,6 @@ mod filter_proxy_iter_dsl {
         }
 
         #[derive(Gilded)]
-        #[allow(dead_code)]
         #[gild(table = "customer")]
         pub struct Customer {
             #[gild(primary_key, column = "customer_id")]
@@ -285,5 +288,22 @@ mod filter_proxy_iter_dsl {
         });
 
         assert_eq!(f.to_string(), "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE name NOT LIKE %test% AND id NOT = 2 AND name LIKE %john%".to_string())
+    }
+
+    fn normal_filter() {
+        let names = vec![
+            String::from("Alice"),
+            String::from("Bob"),
+            String::from("Charlie"),
+            String::from("Amanda"),
+        ];
+
+        // Filter names that start with 'A'
+        let a_names: Vec<String> = names
+            .into_iter()
+            .filter(|name| name.starts_with('A'))
+            .collect();
+
+        // println!("{:?}", a_names);
     }
 }

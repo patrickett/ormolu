@@ -1,15 +1,11 @@
 use super::Where;
+use crate::Gilded;
+use std::marker::PhantomData;
 
 // TODO: phantom data where T::fields() && T::table_name
 
 /// Data from which the actual sql query string will be built
-#[derive(Clone)]
-pub struct QueryState {
-    pub current_index: usize,
-    pub filter_state: Vec<bool>,
-
-    // TODO: move
-
+pub struct QueryState<T> {
     // list of columns - TODO: by default should be all columns instead of *
     pub select: Vec<String>,
     // table name selecting from
@@ -21,50 +17,28 @@ pub struct QueryState {
     // HAVING
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+
+    _marker: PhantomData<T>,
 }
 
-impl QueryState {
-    pub fn return_true(&mut self) -> bool {
-        self.current_index += 1;
-
-        // if already exists in order then return it
-        //
-        // bool is flipped after running predicate outside
-        if let Some(ret) = self.filter_state.get(self.current_index - 1) {
-            return *ret;
-        }
-
-        self.filter_state.push(true);
-        true
-    }
-
-    pub fn new(table_name: &'static str, fields: Vec<String>) -> Self {
+impl<T: Gilded> Default for QueryState<T> {
+    fn default() -> Self {
         Self {
-            current_index: 0,
-            filter_state: Vec::new(),
-
-            from: table_name,
+            from: T::table_name(),
             // need to get fields from type T
-            select: fields,
+            select: T::fields(),
             r#where: Vec::new(),
             limit: None,
             offset: None,
-        }
-    }
-
-    /// Returns true if the query can return more than 1 record
-    pub fn is_many(&self) -> bool {
-        if let Some(limit) = self.limit {
-            limit > 1
-        } else {
-            true
+            _marker: PhantomData,
         }
     }
 }
 
-impl std::fmt::Display for QueryState {
+impl<T> std::fmt::Display for QueryState<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let fields = if self.select.is_empty() {
+            // TODO: QueryState<T: Gilded> T::fields()
             "*".to_string()
         } else {
             self.select.join(", ")

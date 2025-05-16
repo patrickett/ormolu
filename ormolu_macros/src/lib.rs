@@ -185,7 +185,7 @@ pub fn derive_to_proxy(input: TokenStream) -> TokenStream {
         }
 
         impl #proxy_name {
-            pub fn new(state: std::rc::Rc<std::cell::RefCell<QueryState>>) -> Self {
+            pub fn new(state: std::rc::Rc<std::cell::RefCell<ormolu_interfaces::field::filter::FilterState>>) -> Self {
                 Self {
                     #( #proxy_inits, )*
                 }
@@ -196,7 +196,7 @@ pub fn derive_to_proxy(input: TokenStream) -> TokenStream {
         impl ormolu_interfaces::traits::ToProxy for #struct_name {
             type Proxy = #proxy_name;
 
-            fn to_proxy(state: std::rc::Rc<std::cell::RefCell<ormolu_interfaces::sql_command::query::query_builder::QueryState>>) -> Self::Proxy {
+            fn to_proxy(state: std::rc::Rc<std::cell::RefCell<ormolu_interfaces::field::filter::FilterState>>) -> Self::Proxy {
                 #proxy_name::new(state)
             }
         }

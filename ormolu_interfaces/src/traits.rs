@@ -1,9 +1,9 @@
-use crate::query::QueryState;
+use crate::{FilterState, query::QuerySet};
 use std::{cell::RefCell, rc::Rc};
 
 pub trait Gilded
 where
-    Self: ToProxy + HasTableName + HasFields,
+    Self: ToProxy + HasTableName + HasFields + Sized,
 {
     fn is_gilded() -> bool {
         true
@@ -19,7 +19,7 @@ where
 pub trait ToProxy {
     type Proxy;
 
-    fn to_proxy(state: Rc<RefCell<QueryState>>) -> Self::Proxy;
+    fn to_proxy(state: Rc<RefCell<FilterState>>) -> Self::Proxy;
 }
 
 pub trait HasTableName {
@@ -44,4 +44,17 @@ pub trait HasFields {
     // TODO: no alloc here
     // fn fields() -> &'static [&'static str];
     fn fields() -> Vec<String>;
+}
+
+pub trait Findable
+where
+    Self: Gilded,
+{
+    fn find() -> QuerySet<Self> {
+        todo!()
+    }
+
+    fn find_or_create() -> QuerySet<Self> {
+        todo!()
+    }
 }
