@@ -1,34 +1,34 @@
 #[derive(Debug, Clone)]
 pub enum WhereOp {
-    /// =
     EqualTo,
-    /// !=
-    NotEqualTo,
-    /// >
     GreaterThan,
-    /// <
     LessThan,
-    /// >=
     GreaterThanOrEqualTo,
-    /// <=
     LessThanOrEqualTo,
     Like,
-
     Not(Box<WhereOp>),
 }
 
 impl std::fmt::Display for WhereOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: PERF some const stuff can likely be done here
         let a = match self {
-            WhereOp::EqualTo => "=".into(),
-            WhereOp::NotEqualTo => "!=".into(),
-            WhereOp::GreaterThan => ">".into(),
-            WhereOp::LessThan => "<".into(),
-            WhereOp::GreaterThanOrEqualTo => ">=".into(),
-            WhereOp::LessThanOrEqualTo => "<=".into(),
-            WhereOp::Like => "LIKE".into(),
-            WhereOp::Not(op) => format!("NOT {op}"),
+            WhereOp::EqualTo => "=",
+            WhereOp::GreaterThan => ">",
+            WhereOp::LessThan => "<",
+            WhereOp::GreaterThanOrEqualTo => ">=",
+            WhereOp::LessThanOrEqualTo => "<=",
+            WhereOp::Like => "LIKE",
+            WhereOp::Not(nop) => match &**nop {
+                WhereOp::EqualTo => "!=",
+                WhereOp::GreaterThan => "<=",
+                WhereOp::GreaterThanOrEqualTo => "<",
+                WhereOp::LessThan => ">=",
+                WhereOp::LessThanOrEqualTo => ">",
+                WhereOp::Like => "NOT LIKE",
+                WhereOp::Not(_) => {
+                    unreachable!("wrap_not will unbox WhereOp::Not so this will never happen")
+                }
+            },
         };
 
         write!(f, "{a}")
@@ -72,15 +72,18 @@ impl Where {
 
     pub fn neq(column: &'static str, value: String) -> Self {
         Where {
-            oper: WhereOp::NotEqualTo,
+            oper: WhereOp::Not(Box::new(WhereOp::EqualTo)),
             column,
             value,
         }
     }
 
     pub fn wrap_not(mut self) -> Self {
-        let old_oper = self.oper.clone();
-        self.oper = WhereOp::Not(Box::new(old_oper));
+        if let WhereOp::Not(op) = self.oper {
+            self.oper = *op;
+        } else {
+            self.oper = WhereOp::Not(Box::new(self.oper));
+        }
         self
     }
 }

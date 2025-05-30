@@ -1,17 +1,12 @@
-use super::Where;
+use super::{Command, Where};
 use crate::Gilded;
 use std::marker::PhantomData;
 
-// TODO: phantom data where T::fields() && T::table_name
-
-/// Data from which the actual sql query string will be built
 pub struct QueryState<T> {
-    // list of columns - TODO: by default should be all columns instead of *
-    pub select: Vec<String>,
-    // table name selecting from
-    pub from: &'static str,
+    pub command: Command,
+    pub table: &'static str,
     // JOIN
-    pub r#where: Vec<Where>,
+    pub where_conditions: Vec<Where>,
     // ORDER BY
     // GROUP BY
     // HAVING
@@ -21,13 +16,14 @@ pub struct QueryState<T> {
     _marker: PhantomData<T>,
 }
 
-impl<T: Gilded> Default for QueryState<T> {
-    fn default() -> Self {
+impl<T: Gilded> QueryState<T> {
+    pub fn new_select() -> Self {
         Self {
-            from: T::table_name(),
-            // need to get fields from type T
-            select: T::fields(),
-            r#where: Vec::new(),
+            command: Command::Select {
+                fields: T::fields(),
+            },
+            table: T::table_name(),
+            where_conditions: Vec::new(),
             limit: None,
             offset: None,
             _marker: PhantomData,
@@ -37,22 +33,21 @@ impl<T: Gilded> Default for QueryState<T> {
 
 impl<T> std::fmt::Display for QueryState<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let fields = if self.select.is_empty() {
-            // TODO: QueryState<T: Gilded> T::fields()
-            "*".to_string()
-        } else {
-            self.select.join(", ")
+        let command = match &self.command {
+            Command::Select { fields } => {
+                format!("SELECT {} FROM {}", fields.join(", "), self.table)
+            }
+            Command::Delete => {
+                format!("DELETE FROM {}", self.table)
+            }
+            _ => todo!(),
         };
 
-        let select = format!("SELECT {fields}");
-
-        let from = format!(" FROM {}", self.from);
-
-        let where_cond = if self.r#where.is_empty() {
+        let where_conditions = if self.where_conditions.is_empty() {
             String::new()
         } else {
             let where_conditions = self
-                .r#where
+                .where_conditions
                 .iter()
                 .map(|c| c.to_string())
                 .collect::<Vec<String>>()
@@ -73,6 +68,6 @@ impl<T> std::fmt::Display for QueryState<T> {
             String::new()
         };
 
-        write!(f, "{select}{from}{where_cond}{limit}{offset}")
+        write!(f, "{command}{where_conditions}{limit}{offset};")
     }
 }

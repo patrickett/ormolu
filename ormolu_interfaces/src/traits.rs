@@ -1,10 +1,15 @@
-use crate::{FilterState, query::QuerySet};
-use std::{cell::RefCell, rc::Rc};
+use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 
+use crate::FilterState;
+use std::{cell::RefCell, env, rc::Rc};
+
+/// [`Gilded`] is a supertrait to ensure all the necessary component traits
+/// are satisfied.
 pub trait Gilded
 where
-    Self: ToProxy + HasTableName + HasFields + Sized,
+    Self: Filterable + Selectable + HasTableName + HasFields + Sized,
 {
+    #[cfg(debug_assertions)]
     fn is_gilded() -> bool {
         true
     }
@@ -16,10 +21,19 @@ where
 ///
 /// This wraps each field in a struct with a `Field<T>` where field manages the
 /// query state
-pub trait ToProxy {
+pub trait Filterable {
     type Proxy;
 
-    fn to_proxy(state: Rc<RefCell<FilterState>>) -> Self::Proxy;
+    fn to_field_filter(state: Rc<RefCell<FilterState>>) -> Self::Proxy;
+}
+
+pub trait Selectable
+where
+    Self::Select: Default,
+{
+    type Select;
+
+    fn select() -> Self::Select;
 }
 
 pub trait HasTableName {
@@ -41,20 +55,25 @@ pub trait UniqueConstraint {
 }
 
 pub trait HasFields {
-    // TODO: no alloc here
-    // fn fields() -> &'static [&'static str];
-    fn fields() -> Vec<String>;
+    fn fields() -> &'static [&'static str];
 }
 
-pub trait Findable
-where
-    Self: Gilded,
-{
-    fn find() -> QuerySet<Self> {
-        todo!()
-    }
+// TODO: this can likely be improved
+// The idea is we don't want to have to specify the .fetch(&pool) every damn
+// call site we want to talk to the database. This trait makes it so the
+// model itself can at least get a connection inefficently remove the need
+// for the constant passing of the pool parameter. It should also allow custom
+// impl for types
+// pub trait GetPool {
+//     fn get_pool() -> impl Future<Output = Pool<Postgres>> + Send {
+//         async {
+//             let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    fn find_or_create() -> QuerySet<Self> {
-        todo!()
-    }
-}
+//             PgPoolOptions::new()
+//                 .max_connections(5)
+//                 .connect(&db_url)
+//                 .await
+//                 .expect("Failed to connect to database")
+//         }
+//     }
+// }

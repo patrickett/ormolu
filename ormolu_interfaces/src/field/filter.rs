@@ -34,9 +34,9 @@ impl FilterState {
 ///  traits for other operators like BitAnd. Designs for them are under discussion."
 ///
 /// This prevents from doing a something like:
-// ```no_run
-// .filter(|order| !order.name.contains("jon") && order.id == 2)
-// ```
+/// ```ignore
+/// .filter(|order| !order.name.contains("jon") && order.id == 2)
+/// ```
 ///
 /// To get around this we store the bool for each statement within a filter
 /// predicate and will flip return values to avoid short circuits done by negation.
@@ -54,7 +54,7 @@ impl FieldsFilter {
     {
         let this = Self::default();
 
-        let proxy = T::to_proxy(this.state.clone());
+        let proxy = T::to_field_filter(this.state.clone());
         let mut positive_context = predicate(proxy);
 
         while !positive_context {
@@ -69,7 +69,7 @@ impl FieldsFilter {
                 state.index = 0;
             } // drop borrow_mut
 
-            let proxy2 = T::to_proxy(this.state.clone());
+            let proxy2 = T::to_field_filter(this.state.clone());
             positive_context = predicate(proxy2);
         }
 

@@ -6,7 +6,7 @@ mod gilded_macro {
 
     #[test]
     fn parse_header_attributes() {
-        #[derive(Gilded)]
+        #[derive(sqlx::FromRow, Gilded)]
         #[gild(table = "user", schema = "public")]
         pub struct User {
             name: String,
@@ -62,14 +62,14 @@ mod gilded_macro {
 
         let columns = Customer::fields();
 
-        let expected: Vec<String> = vec![
-            "id".into(),
-            "first_name".into(),
-            "last_name".into(),
-            "email".into(),
-            "phone_number".into(),
-            "created_at".into(),
-            "updated_at".into(),
+        let expected = [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "phone_number",
+            "created_at",
+            "updated_at",
         ];
 
         assert_eq!(columns, expected)
@@ -189,18 +189,48 @@ mod gilded_macro {
     }
 }
 
-// #[gild(references = "customer(customer_id)")]
-// #[gild(references = Customer(customer_id))]
-// #[gild(references = (Customer, "customer_id"))]
-// #[gild(references!(Customer, "customer_id"))]
-// customer_id: i32,
-
 #[cfg(test)]
 mod query_builder {
     use crate::{query::*, *};
 
     #[test]
     fn example_builder() {
+        #[derive(Gilded, Default)]
+        #[gild(table = "order")]
+        pub struct Order {
+            #[gild(primary_key, column = "order_id")]
+            id: i32,
+            // #[gild(references = (Customer, "customer_id"))]
+            // or #[gild(references = Customer)] since matching 'customer_id' col name
+            customer_id: i32,
+            order_date: chrono::NaiveDateTime,
+            total_amount: f64,
+            status: String,
+            name: String,
+            shipping_address: String,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        let mut q: QueryState<Order> = sql_command::query::QueryState::new_select();
+        q.limit = Some(1);
+        q.offset = Some(0);
+        // q.set_select(["name".into(), "id".into()]);
+        q.where_conditions.push(Where::neq("id", "4".into()));
+
+        assert_eq!(
+            q.to_string(),
+            "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE id != 4 LIMIT 1 OFFSET 0;".to_string()
+        )
+    }
+}
+
+#[cfg(test)]
+mod filter_proxy_iter_dsl {
+    use crate::{query::*, *};
+
+    #[test]
+    fn multiple_field_filter_with_or() {
         #[derive(Gilded, Default)]
         #[gild(table = "order")]
         pub struct Order {
@@ -213,32 +243,39 @@ mod query_builder {
             total_amount: f64,
             status: String,
             name: String,
+            test: bool,
             shipping_address: String,
             created_at: chrono::NaiveDateTime,
             updated_at: chrono::NaiveDateTime,
         }
 
-        let mut q: QueryState<Order> = sql_command::query::QueryState::default();
-        q.limit = Some(1);
-        q.offset = Some(0);
-        // q.set_select(["name".into(), "id".into()]);
-        q.r#where.push(Where::neq("id", "4".into()));
+        #[derive(Gilded)]
+        #[gild(table = "customer")]
+        pub struct Customer {
+            #[gild(primary_key, column = "customer_id")]
+            id: i32,
+            first_name: String,
+            last_name: String,
+            #[gild(unique)]
+            email: String,
+            phone_number: Option<String>,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
 
-        assert_eq!(
-            q.to_string(),
-            "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE id != 4 LIMIT 1 OFFSET 0".to_string()
-        )
+        let state: QueryState<Order> = QueryState::new_select();
+        let orders = QuerySet::new(state);
+        let f = orders
+            // TODO: Can we be more clever with order.test. Possibly just return
+            // a bool instead of Field<bool>
+            .filter(|order| !order.name.contains("test") || !order.test)
+            .filter(|order| order.id != 2 && order.name.contains("john"));
+
+        assert_eq!(f.to_string(), "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE name NOT LIKE %test% AND id != 2 AND name LIKE %john%;".to_string())
     }
-}
-
-// Customer.orders().order_by().fetch() -> Future<Vec<Order>> // can be created at the same time but the other way
-
-#[cfg(test)]
-mod filter_proxy_iter_dsl {
-    use crate::{query::*, *};
 
     #[test]
-    fn field_filter() {
+    fn multiple_field_filter() {
         #[derive(Gilded, Default)]
         #[gild(table = "order")]
         pub struct Order {
@@ -270,24 +307,71 @@ mod filter_proxy_iter_dsl {
             updated_at: chrono::NaiveDateTime,
         }
 
-        impl Findable for Order {}
-        impl Findable for Customer {}
+        let state: QueryState<Order> = QueryState::new_select();
+        let orders = QuerySet::new(state);
+        let f = orders
+            .filter(|order| !order.name.contains("test"))
+            .filter(|order| order.id != 2 && order.name.contains("john"));
 
+        assert_eq!(f.to_string(), "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE name NOT LIKE %test% AND id != 2 AND name LIKE %john%;".to_string())
+    }
+
+    #[test]
+    fn single_and_field_filter() {
+        #[derive(Gilded, Default)]
+        #[gild(table = "order")]
+        pub struct Order {
+            #[gild(primary_key, column = "order_id")]
+            id: i32,
+            #[gild(references = (Customer, "customer_id"))]
+            // or #[gild(references = Customer)] since matching 'customer_id' col name
+            customer_id: i32,
+            order_date: chrono::NaiveDateTime,
+            total_amount: f64,
+            status: String,
+            name: String,
+            shipping_address: String,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        #[derive(Gilded)]
+        #[gild(table = "customer")]
+        pub struct Customer {
+            #[gild(primary_key, column = "customer_id")]
+            id: i32,
+            first_name: String,
+            last_name: String,
+            #[gild(unique)]
+            email: String,
+            phone_number: Option<String>,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        // NOTE: TODO just get a Vec<Order> for all fetch methods intially
+        // handle no orders or too many manually
         impl Customer {
             // TODO: orders prob should not return a QuerySet<Order>
             // QuerySet is only when we are getting data, we should have
             // to do customer.orders().find().filter()
-            fn orders(&self) -> QuerySet<Order> {
-                todo!()
-            }
+            //
+            // customer.orders().filter(|o| o.name).find().one(&db) -> Order
+            // Customer -> QuerySet<Order> ->
+            // customer.orders().filter(|o| o.name).update().all(&db) -> Vec<Order>
+            //
+            // fn orders(&self) -> QuerySet<Order> {
+            //     todo!()
+            // }
         }
 
-        let orders: QuerySet<Order> = QuerySet::default();
+        let state: QueryState<Order> = QueryState::new_select();
+        let orders = QuerySet::new(state);
         let f = orders.filter(|order| {
             !order.name.contains("test") && order.id != 2 && order.name.contains("john")
         });
 
-        assert_eq!(f.to_string(), "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE name NOT LIKE %test% AND id NOT = 2 AND name LIKE %john%".to_string())
+        assert_eq!(f.to_string(), "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE name NOT LIKE %test% AND id != 2 AND name LIKE %john%;".to_string())
     }
 
     fn normal_filter() {
@@ -306,4 +390,256 @@ mod filter_proxy_iter_dsl {
 
         // println!("{:?}", a_names);
     }
+
+    fn map_ex() {
+        struct User {
+            pub name: String,
+            pub age: u8,
+            pub description: String,
+        }
+
+        let names = vec![User {
+            name: String::new(),
+            age: 0,
+            description: String::new(),
+        }];
+
+        // Filter names that start with 'A'
+        let a_names: Vec<(u8, String)> = names.into_iter().map(|u| (u.age, u.name)).collect();
+
+        // println!("{:?}", a_names);
+    }
 }
+
+#[cfg(test)]
+mod iter_eval {
+    use crate::{query::*, *};
+
+    #[test]
+    fn into_iter_for_loop() {
+        #[derive(Gilded)]
+        #[gild(table = "order")]
+        pub struct Order {
+            #[gild(primary_key, column = "order_id")]
+            id: i32,
+            #[gild(references = (Customer, "customer_id"))]
+            customer_id: i32,
+            order_date: chrono::NaiveDateTime,
+            total_amount: f64,
+            status: String,
+            name: String,
+            shipping_address: String,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        #[derive(Gilded)]
+        #[gild(table = "customer")]
+        pub struct Customer {
+            #[gild(primary_key, column = "customer_id")]
+            id: i32,
+            first_name: String,
+            last_name: String,
+            #[gild(unique)]
+            email: String,
+            phone_number: Option<String>,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        let state: QueryState<Order> = QueryState::new_select();
+        let orders = QuerySet::new(state);
+        let filtered_orders = orders
+            .filter(|order| !order.name.contains("test"))
+            .filter(|order| order.id != 2 && order.name.contains("john"));
+
+        // for order in filtered_orders {}
+
+        // TODO: id Field needs to be renamed to customer_id when made into request
+        assert_eq!(filtered_orders.to_string(), "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE name NOT LIKE %test% AND customer_id != 2 AND name LIKE %john%;".to_string())
+    }
+}
+
+#[cfg(test)]
+mod relations {
+    use crate::{query::*, *};
+
+    #[test]
+    fn one_to_many() {
+        #[derive(Gilded)]
+        #[gild(table = "order")]
+        pub struct Order {
+            #[gild(primary_key, column = "order_id")]
+            id: i32,
+            #[gild(references = (Customer, "customer_id"))]
+            // TODO: Does changing customer_id: i32 -> customer_id: CustomerId<i32> change the semantics needed for the macro?
+            customer_id: i32,
+            order_date: chrono::NaiveDateTime,
+            total_amount: f64,
+            status: String,
+            name: String,
+            shipping_address: String,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        #[derive(Gilded, Default)]
+        #[gild(table = "customer")]
+        pub struct Customer {
+            #[gild(primary_key, column = "customer_id")]
+            id: i32,
+            first_name: String,
+            last_name: String,
+            #[gild(unique)]
+            email: String,
+            phone_number: Option<String>,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        // many
+        // impl Order {
+        //     // to_singular,to_lower
+        //     fn customer(&self) -> QuerySet<Customer> {
+        //         let query_state: QueryState<Customer> = QueryState::new_select();
+        //         let query_set = QuerySet::new(query_state);
+        //         query_set.filter(|customer| customer.id == self.customer_id)
+        //     }
+        // }
+
+        // // one
+        // impl Customer {
+        //     // to_plural,to_lower
+        //     fn orders(&self) -> QuerySet<Order> {
+        //         let query_state: QueryState<Order> = QueryState::new_select();
+        //         let query_set = QuerySet::new(query_state);
+        //         query_set.filter(|order| order.customer_id == self.id)
+        //     }
+        // }
+
+        let john_customer = Customer {
+            id: 432,
+            ..Default::default()
+        };
+
+        // john_customer.orders()
+
+        for order in john_customer.orders() {
+            let cust = order.customer();
+        }
+
+        // assert_eq!(f.to_string(), "SELECT id, customer_id, order_date, total_amount, status, name, shipping_address, created_at, updated_at FROM order WHERE customer_id = 432;".to_string())
+    }
+}
+
+#[cfg(test)]
+mod get_pool {
+    use std::env;
+
+    use sqlx::postgres::PgPoolOptions;
+
+    use crate::{query::*, *};
+
+    #[test]
+    fn override_get_pool() {
+        #[derive(Gilded)]
+        #[gild(table = "order")]
+        pub struct Order {
+            #[gild(primary_key, column = "order_id")]
+            id: i32,
+            #[gild(references = (Customer, "customer_id"))]
+            // or #[gild(references = Customer)] since matching 'customer_id' col name
+            customer_id: i32,
+            order_date: chrono::NaiveDateTime,
+            total_amount: f64,
+            status: String,
+            name: String,
+            shipping_address: String,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        #[derive(Gilded)]
+        #[gild(table = "customer", schema = "public")]
+        pub struct Customer {
+            #[gild(primary_key, column = "customer_id")]
+            id: i32,
+            first_name: String,
+            last_name: String,
+            #[gild(unique)]
+            email: String,
+            phone_number: Option<String>,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        // Customer::schema_name();
+
+        // let state: QueryState<Order> = QueryState::new_select();
+        // let orders = QuerySet::new(state);
+        // let f = orders
+        //     .filter(|order| !order.name.contains("test"))
+        //     .filter(|order| order.id != 2 && order.name.contains("john"));
+    }
+}
+
+#[cfg(test)]
+mod select {
+    use crate::{query::*, *};
+
+    #[test]
+    fn typed_select() {
+        #[derive(Gilded)]
+        #[gild(table = "order")]
+        pub struct Order {
+            #[gild(primary_key, column = "order_id")]
+            id: i32,
+            #[gild(references = (Customer, "customer_id"))]
+            // or #[gild(references = Customer)] since matching 'customer_id' col name
+            customer_id: i32,
+            order_date: chrono::NaiveDateTime,
+            total_amount: f64,
+            status: String,
+            name: String,
+            shipping_address: String,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        #[derive(Gilded)]
+        #[gild(table = "customer")]
+        pub struct Customer {
+            #[gild(primary_key, column = "customer_id")]
+            id: i32,
+            first_name: String,
+            last_name: String,
+            #[gild(unique)]
+            email: String,
+            phone_number: Option<String>,
+            created_at: chrono::NaiveDateTime,
+            updated_at: chrono::NaiveDateTime,
+        }
+
+        fn select_order(s: OrderSelect) {}
+
+        select_order(OrderSelect {
+            id: true,
+            shipping_address: true,
+            ..Default::default()
+        });
+
+        // let state: QueryState<Order> = QueryState::new_select();
+        // let orders = QuerySet::new(state);
+        // let f = orders
+        //     .filter(|order| !order.name.contains("test"))
+        //     .filter(|order| order.id != 2 && order.name.contains("john"));
+    }
+}
+
+// json like macro for sql syntax
+//
+//
+// query!({
+//      select: ["id", "name"],
+//      from: "customer"
+// })
