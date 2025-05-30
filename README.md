@@ -9,6 +9,9 @@ From [Wikipedia](https://en.wikipedia.org/wiki/Ormolu): Ormolu is the gilding te
 **Current status: IN DEVELOPMENT - ORMOLU is not ready for production usage. The API
 is still evolving and documentation is lacking.**
 
+Ormolu tries to bring a good developer experience to working with relational databases in Rust.
+Reducing cruft and boilerplate where possible while maintaining an idomatic feel.
+
 Currently I am only focusing on supporting PostgreSQL.
 I will accept PR's for adding other database support.
 
@@ -60,20 +63,18 @@ pub struct Order {
 ```
 
 ```rust
-// find_by_email will automatically be created since 'email' is made unique in the database.
+// The `find_by_email` method is automatically generated since 'email' is marked unique in the database.
 let john = Customer::find_by_email("jdoe@example.com".to_string()).await?;
 
-let johns_orders: Vec<Order> = john.orders().order_by_asc(|o| o.order_date).fetch().await?;
+let johns_orders: Vec<Order> = john.orders().order_by_asc(|o| o.order_date);
 
-// TODO: syntax
-let johns_orders: Vec<Order> = john
-    .orders(|orders| orders.order_by_asc(|o| o.order_date))
-    .fetch()
-    .await?;
+// for order in johns_orders {
+//     println!("{}", order.name);
+// }
 
 if let Some(newest_order) = johns_orders.first() {
     // This is just demonstrating the relation capability, we have the customer above.
-    let cust = newest_order.customer().fetch().await?;
+    let cust = newest_order.customer().await?;
     println!(
         "{} newest order's total was {}",
         cust.first_name, newest_order.total_amount
@@ -82,18 +83,6 @@ if let Some(newest_order) = johns_orders.first() {
 ```
 
 For more complete examples check out [examples](ormolu/examples)
-
-```Rust
-let order = Order::find_first(|order| order.total.greater_than(10.0));
-```
-
-### Attributes
-
-```rust
-#[gild(primary_key)]
-```
-
-This makes the struct `sqlx::FromRow`
 
 ### Todos
 
