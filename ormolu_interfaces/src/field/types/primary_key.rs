@@ -1,7 +1,9 @@
-use crate::{Col, query::Where};
+use std::fmt::Display;
 
-impl PartialEq<i32> for Col<i32> {
-    fn eq(&self, other: &i32) -> bool {
+use crate::{Col, PrimaryKey, query::Where};
+
+impl<E, T: Display> PartialEq<PrimaryKey<E, T>> for Col<PrimaryKey<E, T>> {
+    fn eq(&self, other: &PrimaryKey<E, T>) -> bool {
         let mut state = self.state.borrow_mut();
         let ret = state.return_true();
         let mut w = Where::eq(self.field_name, other.to_string());

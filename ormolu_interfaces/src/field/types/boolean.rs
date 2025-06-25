@@ -2,9 +2,9 @@
 
 use std::ops::Not;
 
-use crate::{Field, query::Where};
+use crate::{Col, query::Where};
 
-impl PartialEq<bool> for Field<bool> {
+impl PartialEq<bool> for Col<bool> {
     fn eq(&self, other: &bool) -> bool {
         let mut state = self.state.borrow_mut();
         let ret = state.return_true();
@@ -18,11 +18,10 @@ impl PartialEq<bool> for Field<bool> {
     }
 }
 
-impl Not for Field<bool> {
+impl Not for Col<bool> {
     type Output = bool;
 
     fn not(self) -> Self::Output {
-        // let mut field = self.clone();
         let mut state = self.state.borrow_mut();
         let ret = state.return_true();
         let mut w = Where::eq(self.field_name, (!ret).to_string());

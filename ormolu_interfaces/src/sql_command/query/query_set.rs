@@ -1,7 +1,8 @@
-// use std::async_iter::{AsyncIterator, IntoAsyncIterator};
-
 pub use super::QueryState;
 use crate::*;
+use futures::stream::Stream;
+use std::pin::*;
+use std::task::*;
 
 /**
 Internally, a QuerySet can be constructed, filtered, sliced, and generally
@@ -12,7 +13,7 @@ You can evaluate a QuerySet in the following ways:
 
 - Iteration. A QuerySet is iterable, and it executes its database query the first time you iterate over it. For example, this will print the headline of all entries in the database:
 ```rust,ignore
-    let customer = Customer::find_by_id(1).await?;
+    let customer = Customer::get_by_id(1).await?;
     let orders: QuerySet<Order> = customer::orders();
     let real_orders = orders.filter(|o| !o.test);
 
@@ -28,23 +29,31 @@ You can evaluate a QuerySet in the following ways:
     }
 ```
 */
-pub struct QuerySet<T: Gilded> {
+pub struct QuerySet<T: Table> {
+    // TODO: merge QueryState into queryset
     state: QueryState<T>,
 }
 
-impl<T: Gilded> QuerySet<T> {
+impl<T: Table> QuerySet<T> {
     pub fn new(state: QueryState<T>) -> Self {
         Self { state }
     }
 }
 
-impl<T: Gilded> std::fmt::Display for QuerySet<T> {
+impl<T: Table> std::fmt::Display for QuerySet<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.state)
     }
 }
+// TODO: methods like this
+// ```rust,ignore
+//     while let Some(order) = orders.all(&db) {
+//         println!("ORDER: {}", order);
+//     }
+// ```
+// so you can QuerySet<T>::all() which is basically a into_async_iter
 
-// impl<T: Gilded> IntoIterator for QuerySet<T> {
+// impl<T: Table> IntoIterator for QuerySet<T> {
 //     type Item = T;
 //     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -57,7 +66,7 @@ impl<T: Gilded> std::fmt::Display for QuerySet<T> {
 //     }
 // }
 
-// impl<T: Gilded> IntoAsyncIterator for QuerySet<T> {
+// impl<T: Table> IntoAsyncIterator for QuerySet<T> {
 //     type Item = T;
 //     type IntoAsyncIter = AsyncIterator<Item = Self::Item>;
 
@@ -67,19 +76,34 @@ impl<T: Gilded> std::fmt::Display for QuerySet<T> {
 //     }
 // }
 
-impl<T: Gilded> Iterator for QuerySet<T> {
+// impl<T> Iterator for QuerySet<T>
+// where
+//     T: Table,
+// {
+//     type Item = ;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         todo!()
+//     }
+// }
+
+impl<T> Stream for QuerySet<T>
+where
+    T: Table,
+{
     type Item = T;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        // let sql = self.state.to_string();
-        // let f = sqlx::query(&sql).fetch_all(executor);
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         todo!()
     }
 }
 
+// async iterators and queryset are good fit since they are lazy and do nothing
+// unless polled
+
 // TODO: impl Filter from Iterator?
 // AsyncIterator?
-impl<T: Gilded> QuerySet<T> {
+impl<T: Table> QuerySet<T> {
     /// Returns a QuerySet containing WHERE clauses derived from the filters.
     ///
     /// Filters are joined via AND in the underlying SQL statement.
@@ -87,6 +111,7 @@ impl<T: Gilded> QuerySet<T> {
     /// If you need to execute more complex queries
     /// (for example, queries with OR statements), you can use the `.or()` syntax.
     // NOTE: this Shadows Iterator::filter
+    // TODO: Change TFilter to AndFilter<T> with deref
     pub fn filter<P>(mut self, predicate: P) -> Self
     where
         P: Fn(T::Proxy) -> bool,

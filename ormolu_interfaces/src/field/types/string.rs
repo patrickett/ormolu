@@ -1,7 +1,7 @@
 pub use crate::query::QueryState;
-use crate::{Field, query::Where};
+use crate::{Col, query::Where};
 
-impl Field<String> {
+impl Col<String> {
     pub fn contains(&self, s: &str) -> bool {
         let mut state = self.state.borrow_mut();
         let ret = state.return_true();
@@ -15,7 +15,7 @@ impl Field<String> {
     }
 }
 
-impl PartialEq<String> for Field<String> {
+impl PartialEq<String> for Col<String> {
     fn eq(&self, other: &String) -> bool {
         let mut state = self.state.borrow_mut();
         let ret = state.return_true();
@@ -29,7 +29,7 @@ impl PartialEq<String> for Field<String> {
     }
 }
 
-impl PartialEq<String> for Field<&str> {
+impl PartialEq<String> for Col<&str> {
     fn eq(&self, other: &String) -> bool {
         let mut state = self.state.borrow_mut();
         let ret = state.return_true();

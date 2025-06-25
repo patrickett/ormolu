@@ -5,3 +5,21 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.2", features = ["derive"] }
+tokio = { version = "1.45.1", features = ["full"] }
+url = "2.5.4"
+sqlx = { version = "0.7.4", features = [
+    "postgres",
+    "chrono",
+    "runtime-tokio-native-tls",
+] }
+syn = { version = "2.0.52", default-features = false, features = [
+    "full",
+    "derive",
+    "parsing",
+    "printing",
+    "clone-impls",
+] }
+quote = "1.0"
+convert_case = "0.8.0"
+proc-macro2 = "1.0.95"
+dotenvy = "0.15.7"

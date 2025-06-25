@@ -21,6 +21,9 @@ Ormolu expects that what exists in the database is the proper intended way thing
 should be. So the `ormolu-cli` will generate all the types to interact with the tables
 in the database for you.
 
+Changes should happen at/in the database and then you should rerun the `ormolu-cli` to make sure any
+changes are reflected in the types.
+
 ### Usage
 
 ```bash
@@ -32,30 +35,27 @@ ormolu generate -d "postgres://username:password@host/database?currentSchema=my_
 ```Rust
 use ormolu::*;
 
-#[derive(Gilded)]
-#[gild(table = "customer")]
+#[derive(Table)]
+#[name = "public.customer"]
 pub struct Customer {
-    #[gild(primary_key, column = "customer_id")]
-    id: i32,
+    id: PrimaryKey<Self, i32>,
     first_name: String,
     last_name: String,
-    #[gild(unique)]
-    email: String,
-    phone_number: Option<String>,
+    email: Unique<String>,
+    phone_number: Option<Unique<String>>,
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
 }
 
-#[derive(Gilded)]
-#[gild(table = "order")]
+#[derive(Table)]
+#[name = "public.order"]
 pub struct Order {
-    #[gild(primary_key, column = "order_id")]
-    id: i32,
-    #[gild(references = Customer)] // column not required since both structs have 'customer_id'
-    customer_id: i32,
+    id: PrimaryKey<Self, i32>,
+    customer_id: ForeignKey<Customer, 1, i32>,
     order_date: chrono::NaiveDateTime,
     total_amount: f64,
     status: String,
+    name: String,
     shipping_address: String,
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
@@ -64,7 +64,7 @@ pub struct Order {
 
 ```rust
 // The `find_by_email` method is automatically generated since 'email' is marked unique in the database.
-let john = Customer::find_by_email("jdoe@example.com".to_string()).await?;
+let john = Customer::find_by_email("jdoe@example.com").await?;
 
 let johns_orders: Vec<Order> = john.orders().order_by_asc(|o| o.order_date);
 

@@ -1,4 +1,4 @@
-use crate::{Gilded, query::Where};
+use crate::{Table, query::Where};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Default)]
@@ -28,7 +28,7 @@ impl FilterState {
 
 /// Short circuiting logical and (&&) and or (||) does not currently support overloading.
 ///
-/// See: https://doc.rust-lang.org/core/ops/
+/// See: <https://doc.rust-lang.org/core/ops/>
 /// "Note that the && and || operators are currently not supported for overloading.
 ///  Due to their short circuiting nature, they require a different design from
 ///  traits for other operators like BitAnd. Designs for them are under discussion."
@@ -49,7 +49,7 @@ pub struct FieldsFilter {
 impl FieldsFilter {
     pub fn new<T, P>(predicate: P) -> FieldsFilter
     where
-        T: Gilded,
+        T: Table,
         P: Fn(T::Proxy) -> bool,
     {
         let this = Self::default();
